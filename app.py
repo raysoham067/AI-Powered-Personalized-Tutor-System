@@ -1,10 +1,9 @@
 import pandas as pd
-import numpy as np
 import os
 import webbrowser
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import mean_absolute_error
 
 # =========================
@@ -26,7 +25,11 @@ required_columns = ['Age', 'Gender', 'Country', 'State', 'City', 'Parent Occupat
 
 missing_cols = [col for col in required_columns if col not in df.columns]
 if missing_cols:
-    raise ValueError(f"Missing columns in dataset: {missing_cols}")
+    raise ValueError(f"Missing columns: {missing_cols}")
+
+# Optional column handling
+if 'Name' not in df.columns:
+    df['Name'] = "Student_" + df.index.astype(str)
 
 # =========================
 # Encode categorical columns
@@ -37,10 +40,9 @@ categorical_columns = ['Gender', 'Country', 'State', 'City',
                        'Level of Student', 'Level of Course', 'Course Name']
 
 for col in categorical_columns:
-    if df[col].dtype == 'object':
-        le = LabelEncoder()
-        df[col] = le.fit_transform(df[col])
-        label_encoders[col] = le
+    le = LabelEncoder()
+    df[col] = le.fit_transform(df[col].astype(str))
+    label_encoders[col] = le
 
 # =========================
 # Feature selection
@@ -49,22 +51,20 @@ X = df[required_columns[:-1]]
 y = df['Assessment Score']
 
 # =========================
-# Standardization
-# =========================
-scaler = StandardScaler()
-X_scaled = scaler.fit_transform(X)
-
-# =========================
 # Train-test split
 # =========================
 X_train, X_test, y_train, y_test = train_test_split(
-    X_scaled, y, test_size=0.2, random_state=42
+    X, y, test_size=0.2, random_state=42
 )
 
 # =========================
 # Model training
 # =========================
-model = RandomForestRegressor(n_estimators=100, random_state=42)
+model = RandomForestRegressor(
+    n_estimators=200,
+    max_depth=10,
+    random_state=42
+)
 model.fit(X_train, y_train)
 
 # =========================
@@ -72,12 +72,13 @@ model.fit(X_train, y_train)
 # =========================
 y_pred = model.predict(X_test)
 mae = mean_absolute_error(y_test, y_pred)
-print(f"\nModel MAE: {mae:.2f}")
+print(f"\n📊 Model MAE: {mae:.2f}")
 
 # =========================
 # Predictions
 # =========================
-df['Predicted Score'] = model.predict(X_scaled)
+df['Predicted Score'] = model.predict(X)
+
 df['Promotion Status'] = df['Predicted Score'].apply(
     lambda x: 'Promoted' if x >= 50 else 'Not Promoted'
 )
@@ -85,17 +86,15 @@ df['Promotion Status'] = df['Predicted Score'].apply(
 # =========================
 # Study material recommendation
 # =========================
-def filter_material(level):
-    if pd.isna(level):
-        return "Unknown"
-    elif level <= 1:
+def recommend_material(level):
+    if level <= 1:
         return "Basic Materials"
     elif level <= 3:
         return "Intermediate Materials"
     else:
         return "Advanced Materials"
 
-df['Recommended Material'] = df['Level of Student'].apply(filter_material)
+df['Recommended Material'] = df['Level of Student'].apply(recommend_material)
 
 # =========================
 # Save results
@@ -108,9 +107,9 @@ df.to_excel(output_file_path, index=False)
 # =========================
 print("\n========== Student Assessment Results ==========")
 print(df[['Name', 'Assessment Score', 'Predicted Score',
-          'Promotion Status', 'Recommended Material']].head().to_string(index=False))
+          'Promotion Status', 'Recommended Material']].head(10).to_string(index=False))
 print("===============================================")
-print(f"\nResults saved to: {output_file_path}\n")
+print(f"\n📁 Results saved to: {output_file_path}\n")
 
 # =========================
 # Learning Material Provider
@@ -142,7 +141,9 @@ def provide_material():
         print(f"▶ Detailed Video: {explained_video}")
         webbrowser.open(explained_video)
     else:
-        print("\n👍 Okay! You can explore more anytime.")
+        print("\n👍 You can explore more anytime.")
 
+# =========================
 # Run
+# =========================
 provide_material()
